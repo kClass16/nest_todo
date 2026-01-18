@@ -1,39 +1,35 @@
-import { Injectable } from '@nestjs/common';
-import { Todo } from './todo.entity';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Todo, TodoDocument } from './todo.schema';
 
 @Injectable()
 export class TodosService {
-  private todos: Todo[] = [];
-  private idCounter = 1;
+  constructor(@InjectModel(Todo.name) private todoModel: Model<TodoDocument>) {}
 
-  findAll(): Todo[] {
-    return this.todos;
+  async findAll(): Promise<Todo[]> {
+    return this.todoModel.find().exec();
   }
 
-findOne(id: number): Todo | undefined {
-  return this.todos.find(todo => todo.id === id);
-}
-
-
-  create(title: string, description?: string): Todo {
-    const newTodo: Todo = {
-      id: this.idCounter++,
-      title,
-      description,
-      isCompleted: false,
-    };
-    this.todos.push(newTodo);
-    return newTodo;
+  async findOne(id: string): Promise<Todo> {
+    const todo = await this.todoModel.findById(id).exec();
+    if (!todo) throw new NotFoundException(`Todo with id ${id} not found`);
+    return todo;
   }
 
-update(id: number, updateData: Partial<Todo>): Todo | undefined {
-  const todo = this.findOne(id);
-  if (todo) Object.assign(todo, updateData);
-  return todo;
-}
+  async create(title: string, description?: string): Promise<Todo> {
+    const newTodo = new this.todoModel({ title, description });
+    return newTodo.save();
+  }
 
+  async update(id: string, updateData: Partial<Todo>): Promise<Todo> {
+    const updated = await this.todoModel.findByIdAndUpdate(id, updateData, { new: true }).exec();
+    if (!updated) throw new NotFoundException(`Todo with id ${id} not found`);
+    return updated;
+  }
 
-  remove(id: number): void {
-    this.todos = this.todos.filter(todo => todo.id !== id);
+  async remove(id: string): Promise<void> {
+    const result = await this.todoModel.findByIdAndDelete(id).exec();
+    if (!result) throw new NotFoundException(`Todo with id ${id} not found`);
   }
 }
